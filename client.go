@@ -16,12 +16,6 @@ const endpoint = "https://api.notion.com/v1"
 
 type databaseID string
 
-var header = http.Header{
-	"Authorization":  []string{"Bearer "},
-	"Notion-Version": []string{"2021-05-13"},
-	"Content-Type":   []string{"application/json"},
-}
-
 type Client struct {
 	config *Config
 	header http.Header
@@ -80,11 +74,18 @@ func (c *Client) insertItem(db databaseID, item *Item) error {
 		},
 	}
 
+	props := m["properties"].(map[string]interface{})
+	for k, v := range item.Fields {
+		props[k] = map[string]interface{}{"name": v}
+	}
+
 	enc := json.NewEncoder(&buf)
 	err := enc.Encode(m)
 	if err != nil {
 		return err
 	}
+
+	fmt.Println(m)
 
 	cl := c.newHTTPClient()
 	req := c.newRequest("POST", "/pages")

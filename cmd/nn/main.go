@@ -82,14 +82,32 @@ func main() {
 						Required: true,
 						Usage:    "name of the database to operate on",
 					},
+					&cli.StringFlag{
+						Name:    "name",
+						Aliases: []string{"n"},
+						Usage:   "item name (page title) to insert",
+					},
+					&cli.StringSliceFlag{
+						Name:    "fields",
+						Aliases: []string{"f"},
+						Usage:   "list of fields to insert",
+					},
 				},
 				Action: func(c *cli.Context) error {
 					config, err := notionhacks.Load()
 					if err != nil {
 						return err
 					}
+					fields, err := parseFields(c.StringSlice("fields"))
+					if err != nil {
+						return err
+					}
+					item := notionhacks.Item{
+						Name:   c.String("name"),
+						Fields: fields,
+					}
 					client := notionhacks.New(config)
-					return client.InsertItem("tasks", &notionhacks.Item{Name: "something"})
+					return client.InsertItem("tasks", &item)
 				},
 			},
 			{
@@ -108,6 +126,20 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func parseFields(fields []string) (map[string]string, error) {
+	m := map[string]string{}
+	for _, field := range fields {
+		strs := strings.Split(field, "=")
+		if len(strs) < 2 {
+			return nil, fmt.Errorf("invalid field format: %s", field)
+		}
+		key := strs[0]
+		value := strings.Join(strs[1:], "")
+		m[key] = value
+	}
+	return m, nil
 }
 
 // var headers = http.Header{
