@@ -1,5 +1,7 @@
 # Notion Hacks
 
+A collection of tools to interact with notion from the command line.
+
 ## Installation
 
 ```
