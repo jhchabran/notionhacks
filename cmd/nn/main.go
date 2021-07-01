@@ -16,17 +16,6 @@ func main() {
 		Name:     "nn",
 		HelpName: "nn",
 		Usage:    "Interact with notion.so databases from the command-line.",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:  "db",
-				Usage: "name of the database to operate on",
-			},
-			&cli.StringFlag{
-				Name:  "format",
-				Value: "raw",
-				Usage: "output format, json, fancy or raw",
-			},
-		},
 		Commands: []*cli.Command{
 			{
 				Name:  "auth",
@@ -67,8 +56,35 @@ func main() {
 				Name:    "list",
 				Aliases: []string{"l"},
 				Usage:   "list items from a database",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:     "db",
+						Required: true,
+						Usage:    "name of the database to operate on",
+					},
+					&cli.StringFlag{
+						Name:  "format",
+						Value: "fancy",
+						Usage: "output format, json, fancy or raw",
+					},
+				},
 				Action: func(c *cli.Context) error {
-					fmt.Println("list")
+					config, err := notionhacks.Load()
+					if err != nil {
+						return err
+					}
+					client := notionhacks.New(config)
+					items, raw, err := client.ListItems("tasks")
+					if err != nil {
+						return err
+					}
+					if c.String("format") == "raw" {
+						fmt.Println(string(raw))
+					} else {
+						for _, item := range items {
+							fmt.Println(item.Name, item.Fields)
+						}
+					}
 					return nil
 				},
 			},

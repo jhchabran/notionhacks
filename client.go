@@ -49,6 +49,58 @@ func (c *Client) newRequest(method string, path string) *http.Request {
 	}
 }
 
+func (c *Client) ListItems(db string) ([]*Item, []byte, error) {
+	id, ok := c.config.databases[db]
+	if !ok {
+		return nil, nil, fmt.Errorf("unknown database name: %s", db)
+	}
+	return c.listItems(id)
+}
+
+func (c *Client) listItems(db databaseID) ([]*Item, []byte, error) {
+	var buf bytes.Buffer
+	buf.WriteString("{}")
+
+	cl := c.newHTTPClient()
+	req := c.newRequest("POST", "/databases/"+string(db)+"/query")
+	req.Body = io.NopCloser(&buf)
+	resp, err := cl.Do(req)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		log.Println(resp.StatusCode)
+		b, _ := ioutil.ReadAll(resp.Body)
+		log.Println(string(b))
+		return nil, nil, fmt.Errorf("failed to perform request")
+	}
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	r := map[string]interface{}{}
+	dec := json.NewDecoder(bytes.NewReader(b))
+	err = dec.Decode(&r)
+	if err != nil {
+		fmt.Println("decoding")
+		return nil, nil, err
+	}
+
+	var items []*Item
+	objects := r["results"].([]interface{})
+	for _, obj := range objects {
+		props := obj.(map[string]interface{})["properties"].(map[string]interface{})
+		titleRT := props["Name"].(map[string]interface{})
+		content := titleRT["title"].([]interface{})[0].(map[string]interface{})["text"].(map[string]interface{})["content"].(string)
+		item := Item{Name: content}
+		items = append(items, &item)
+	}
+
+	return items, b, nil
+}
+
 func (c *Client) InsertItem(db string, item *Item) error {
 	id, ok := c.config.databases[db]
 	if !ok {
@@ -84,8 +136,6 @@ func (c *Client) insertItem(db databaseID, item *Item) error {
 	if err != nil {
 		return err
 	}
-
-	fmt.Println(m)
 
 	cl := c.newHTTPClient()
 	req := c.newRequest("POST", "/pages")
