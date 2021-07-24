@@ -11,11 +11,24 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+func getConfig(c *cli.Context) notionhacks.Config {
+	if path := c.String("config"); path != "" {
+		return notionhacks.NewJSONConfig(path)
+	}
+	return notionhacks.NewKeyChainConfig()
+}
+
 func main() {
 	app := &cli.App{
 		Name:     "nn",
 		HelpName: "nn",
 		Usage:    "Interact with notion.so databases from the command-line.",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:  "config",
+				Usage: "path to json config file (debugging purposes)",
+			},
+		},
 		Commands: []*cli.Command{
 			{
 				Name:  "auth",
@@ -24,7 +37,8 @@ func main() {
 					reader := bufio.NewReader(os.Stdin)
 					fmt.Print("Enter API key: ")
 					text, _ := reader.ReadString('\n')
-					err := notionhacks.SaveApiKey(strings.TrimSpace(text))
+					config := getConfig(c)
+					err := config.SetAPIKey(strings.TrimSpace(text))
 					return err
 				},
 			},
@@ -44,12 +58,12 @@ func main() {
 					},
 				},
 				Action: func(c *cli.Context) error {
-					config, err := notionhacks.Load()
+					config := getConfig(c)
+					err := config.Load()
 					if err != nil {
 						return err
 					}
-					config.RegisterDatabase(c.String("name"), c.String("id"))
-					return config.Save()
+					return config.RegisterDatabaseName(c.String("name"), c.String("id"))
 				},
 			},
 			{
@@ -69,12 +83,13 @@ func main() {
 					},
 				},
 				Action: func(c *cli.Context) error {
-					config, err := notionhacks.Load()
+					config := getConfig(c)
+					err := config.Load()
 					if err != nil {
 						return err
 					}
 					client := notionhacks.New(config)
-					items, raw, err := client.ListItems("tasks")
+					items, raw, err := client.ListItems(c.String("db"))
 					if err != nil {
 						return err
 					}
@@ -110,20 +125,22 @@ func main() {
 					},
 				},
 				Action: func(c *cli.Context) error {
-					config, err := notionhacks.Load()
-					if err != nil {
-						return err
-					}
-					fields, err := parseFields(c.StringSlice("fields"))
-					if err != nil {
-						return err
-					}
-					item := notionhacks.Item{
-						Name:   c.String("name"),
-						Fields: fields,
-					}
-					client := notionhacks.New(config)
-					return client.InsertItem("tasks", &item)
+					// config := getConfig(c)
+					// config, err := notionhacks.Load()
+					// if err != nil {
+					// 	return err
+					// }
+					// fields, err := parseFields(c.StringSlice("fields"))
+					// if err != nil {
+					// 	return err
+					// }
+					// item := notionhacks.Item{
+					// 	Name:   c.String("name"),
+					// 	Fields: fields,
+					// }
+					// client := notionhacks.New(config)
+					// return client.InsertItem("tasks", &item)
+					return nil
 				},
 			},
 			{
