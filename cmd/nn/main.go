@@ -125,22 +125,21 @@ func main() {
 					},
 				},
 				Action: func(c *cli.Context) error {
-					// config := getConfig(c)
-					// config, err := notionhacks.Load()
-					// if err != nil {
-					// 	return err
-					// }
-					// fields, err := parseFields(c.StringSlice("fields"))
-					// if err != nil {
-					// 	return err
-					// }
-					// item := notionhacks.Item{
-					// 	Name:   c.String("name"),
-					// 	Fields: fields,
-					// }
-					// client := notionhacks.New(config)
-					// return client.InsertItem("tasks", &item)
-					return nil
+					config := getConfig(c)
+					err := config.Load()
+					if err != nil {
+						return err
+					}
+					fields, err := parseFields(c.StringSlice("fields"))
+					if err != nil {
+						return err
+					}
+					item := notionhacks.Item{
+						Name:   c.String("name"),
+						Fields: fields,
+					}
+					client := notionhacks.New(config)
+					return client.InsertItem(c.String("db"), &item)
 				},
 			},
 			{

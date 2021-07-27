@@ -3,6 +3,8 @@ package notionhacks
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"time"
 
 	"github.com/jomei/notionapi"
 )
@@ -67,140 +69,150 @@ func (c *Client) ListItems(dbname string) ([]*Item, []byte, error) {
 	return items, nil, nil
 }
 
-// type Client struct {
-// 	config *Config
-// 	header http.Header
-// }
+func (c *Client) InsertItem(dbname string, item *Item) error {
+	id, err := c.config.DatabaseID(dbname)
+	if err != nil {
+		return err
+	}
 
-// func New(config *Config) *Client {
-// 	header := http.Header{
-// 		"Authorization":  []string{"Bearer " + config.apiKey},
-// 		"Notion-Version": []string{"2021-05-13"},
-// 		"Content-Type":   []string{"application/json"},
-// 	}
+	dbprops, err := c.getPagePropertyTypes(context.TODO(), notionapi.DatabaseID(id))
+	properties, err := collectProperties(item, dbprops)
+	if err != nil {
+		return err
+	}
 
-// 	return &Client{
-// 		config: config,
-// 		header: header,
-// 	}
-// }
+	properties["Name"] = notionapi.PageTitleProperty{
+		Title: notionapi.Paragraph{notionapi.RichText{Text: notionapi.Text{Content: item.Name}}},
+	}
 
-// func (c *Client) newHTTPClient() *http.Client {
-// 	return &http.Client{
-// 		Timeout: time.Second * 5,
-// 	}
-// }
+	_, err = c.notion.Page.Create(context.Background(), &notionapi.PageCreateRequest{
+		Parent: notionapi.Parent{
+			Type:       notionapi.ParentTypeDatabaseID,
+			DatabaseID: notionapi.DatabaseID(id),
+		},
+		Properties: properties,
+	})
+	return err
+}
 
-// func (c *Client) newRequest(method string, path string) *http.Request {
-// 	u, _ := url.ParseRequestURI(endpoint + path)
-// 	return &http.Request{
-// 		Method: method,
-// 		URL:    u,
-// 		Header: c.header,
-// 	}
-// }
+func (c *Client) getPagePropertyTypes(ctx context.Context, id notionapi.DatabaseID) (notionapi.Properties, error) {
+	db, err := c.notion.Database.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return db.Properties, nil
+}
 
-// func (c *Client) ListItems(db string) ([]*Item, []byte, error) {
-// 	id, ok := c.config.databases[db]
-// 	if !ok {
-// 		return nil, nil, fmt.Errorf("unknown database name: %s", db)
-// 	}
-// 	return c.listItems(id)
-// }
-
-// func (c *Client) listItems(db databaseID) ([]*Item, []byte, error) {
-// 	var buf bytes.Buffer
-// 	buf.WriteString("{}")
-
-// 	cl := c.newHTTPClient()
-// 	req := c.newRequest("POST", "/databases/"+string(db)+"/query")
-// 	req.Body = io.NopCloser(&buf)
-// 	resp, err := cl.Do(req)
-// 	if err != nil {
-// 		return nil, nil, err
-// 	}
-// 	defer resp.Body.Close()
-// 	if resp.StatusCode != 200 {
-// 		log.Println(resp.StatusCode)
-// 		b, _ := ioutil.ReadAll(resp.Body)
-// 		log.Println(string(b))
-// 		return nil, nil, fmt.Errorf("failed to perform request")
-// 	}
-// 	b, err := ioutil.ReadAll(resp.Body)
-// 	if err != nil {
-// 		return nil, nil, err
-// 	}
-
-// 	r := map[string]interface{}{}
-// 	dec := json.NewDecoder(bytes.NewReader(b))
-// 	err = dec.Decode(&r)
-// 	if err != nil {
-// 		fmt.Println("decoding")
-// 		return nil, nil, err
-// 	}
-
-// 	var items []*Item
-// 	objects := r["results"].([]interface{})
-// 	for _, obj := range objects {
-// 		props := obj.(map[string]interface{})["properties"].(map[string]interface{})
-// 		titleRT := props["Name"].(map[string]interface{})
-// 		content := titleRT["title"].([]interface{})[0].(map[string]interface{})["text"].(map[string]interface{})["content"].(string)
-// 		item := Item{Name: content}
-// 		items = append(items, &item)
-// 	}
-
-// 	return items, b, nil
-// }
-
-// func (c *Client) InsertItem(db string, item *Item) error {
-// 	id, ok := c.config.databases[db]
-// 	if !ok {
-// 		return fmt.Errorf("unknown database name: %s", db)
-// 	}
-// 	return c.insertItem(id, item)
-// }
-
-// func (c *Client) insertItem(db databaseID, item *Item) error {
-// 	var buf bytes.Buffer
-
-// 	m := map[string]interface{}{
-// 		"parent": map[string]interface{}{
-// 			"database_id": db,
-// 		},
-// 		"properties": map[string]interface{}{
-// 			"Name": []interface{}{
-// 				map[string]interface{}{
-// 					"name": "Name",
-// 					"text": map[string]interface{}{"content": item.Name},
-// 				},
-// 			},
-// 		},
-// 	}
-
-// 	props := m["properties"].(map[string]interface{})
-// 	for k, v := range item.Fields {
-// 		props[k] = map[string]interface{}{"name": v}
-// 	}
-
-// 	enc := json.NewEncoder(&buf)
-// 	err := enc.Encode(m)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	cl := c.newHTTPClient()
-// 	req := c.newRequest("POST", "/pages")
-// 	req.Body = io.NopCloser(&buf)
-// 	resp, err := cl.Do(req)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	defer resp.Body.Close()
-// 	if resp.StatusCode != 200 {
-// 		log.Println(resp.StatusCode)
-// 		b, _ := ioutil.ReadAll(resp.Body)
-// 		log.Println(string(b))
-// 		return fmt.Errorf("failed to perform request")
-// 	}
-// 	return nil
-// }
+func collectProperties(item *Item, properties notionapi.Properties) (notionapi.Properties, error) {
+	result := notionapi.Properties{}
+	for k, v := range item.Fields {
+		if p, ok := properties[k]; ok {
+			switch p.GetType() {
+			case "rich_text":
+				pp := p.(*notionapi.RichTextProperty)
+				pp.RichText = []notionapi.RichText{{Text: notionapi.Text{Content: v}}}
+				result[k] = pp
+			case "number":
+				f, err := strconv.ParseFloat(v, 64)
+				if err != nil {
+					return nil, err
+				}
+				result[k] = notionapi.NumberValueProperty{
+					Type:   "number",
+					Number: f,
+				}
+			case "select":
+				pp := p.(*notionapi.SelectProperty)
+				var name string
+				var found bool
+				for _, option := range pp.Select.Options {
+					// TODO case
+					if option.Name == v {
+						found = true
+						name = option.Name
+						break
+					}
+				}
+				if found {
+					result[k] = notionapi.SelectOptionProperty{
+						Type:   "select",
+						Select: notionapi.Option{Name: name},
+					}
+				} else {
+					return nil, fmt.Errorf("option not found")
+				}
+			case "multi_select":
+				pp := p.(*notionapi.MultiSelectProperty)
+				var name string
+				var found bool
+				for _, option := range pp.MultiSelect.Options {
+					// TODO case
+					if option.Name == v {
+						found = true
+						name = option.Name
+						break
+					}
+				}
+				if found {
+					result[k] = notionapi.MultiSelectOptionsProperty{
+						Type:        "multi_select",
+						MultiSelect: []notionapi.Option{notionapi.Option{Name: name}},
+					}
+				} else {
+					return nil, fmt.Errorf("option not found")
+				}
+			case "date":
+				// TODO ranges
+				_, err := time.Parse(time.RFC3339, v)
+				if err != nil {
+					return nil, err
+				}
+				result[k] = notionapi.DateProperty{
+					Type: "date",
+					Date: map[string]string{"start": v},
+				}
+			case "formula":
+				return nil, fmt.Errorf("formula property type is not supported")
+			case "relation":
+				return nil, fmt.Errorf("TODO")
+			case "rollup":
+				return nil, fmt.Errorf("rollup property type is not supported")
+			case "title":
+				result[k] = notionapi.PageTitleProperty{
+					Title: notionapi.Paragraph{notionapi.RichText{Text: notionapi.Text{Content: v}}},
+				}
+			case "people":
+				return nil, fmt.Errorf("TODO")
+			case "files":
+				return nil, fmt.Errorf("files property type is not supported")
+			case "checkbox":
+				b, err := strconv.ParseBool(v)
+				if err != nil {
+					return nil, err
+				}
+				result[k] = notionapi.CheckboxProperty{
+					Type:     "checkbox",
+					Checkbox: b,
+				}
+			case "url":
+				result[k] = notionapi.URLProperty{
+					Type: "url",
+					URL:  v,
+				}
+			case "email":
+				result[k] = notionapi.EmailProperty{
+					Type:  "email",
+					Email: v,
+				}
+			case "phone_number":
+				result[k] = notionapi.PhoneNumberProperty{
+					Type:        "phone_number",
+					PhoneNumber: v,
+				}
+			default:
+				return nil, fmt.Errorf("read only property %s", k)
+			}
+		}
+	}
+	return result, nil
+}
