@@ -11,6 +11,13 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+func getConfig(c *cli.Context) notionhacks.Config {
+	if path := c.String("config"); path != "" {
+		return notionhacks.NewJSONConfig(path)
+	}
+	return notionhacks.NewKeyChainConfig()
+}
+
 func main() {
 	app := &cli.App{
 		Name:     "nn",
@@ -18,13 +25,8 @@ func main() {
 		Usage:    "Interact with notion.so databases from the command-line.",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:  "db",
-				Usage: "name of the database to operate on",
-			},
-			&cli.StringFlag{
-				Name:  "format",
-				Value: "raw",
-				Usage: "output format, json, fancy or raw",
+				Name:  "config",
+				Usage: "path to json config file (debugging purposes)",
 			},
 		},
 		Commands: []*cli.Command{
@@ -35,7 +37,8 @@ func main() {
 					reader := bufio.NewReader(os.Stdin)
 					fmt.Print("Enter API key: ")
 					text, _ := reader.ReadString('\n')
-					err := notionhacks.SaveApiKey(strings.TrimSpace(text))
+					config := getConfig(c)
+					err := config.SetAPIKey(strings.TrimSpace(text))
 					return err
 				},
 			},
@@ -55,20 +58,48 @@ func main() {
 					},
 				},
 				Action: func(c *cli.Context) error {
-					config, err := notionhacks.Load()
+					config := getConfig(c)
+					err := config.Load()
 					if err != nil {
 						return err
 					}
-					config.RegisterDatabase(c.String("name"), c.String("id"))
-					return config.Save()
+					return config.RegisterDatabaseName(c.String("name"), c.String("id"))
 				},
 			},
 			{
 				Name:    "list",
 				Aliases: []string{"l"},
 				Usage:   "list items from a database",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:     "db",
+						Required: true,
+						Usage:    "name of the database to operate on",
+					},
+					&cli.StringFlag{
+						Name:  "format",
+						Value: "fancy",
+						Usage: "output format, json, fancy or raw",
+					},
+				},
 				Action: func(c *cli.Context) error {
-					fmt.Println("list")
+					config := getConfig(c)
+					err := config.Load()
+					if err != nil {
+						return err
+					}
+					client := notionhacks.New(config)
+					items, raw, err := client.ListItems(c.String("db"))
+					if err != nil {
+						return err
+					}
+					if c.String("format") == "raw" {
+						fmt.Println(string(raw))
+					} else {
+						for _, item := range items {
+							fmt.Println(item.Name, item.Fields)
+						}
+					}
 					return nil
 				},
 			},
@@ -94,7 +125,8 @@ func main() {
 					},
 				},
 				Action: func(c *cli.Context) error {
-					config, err := notionhacks.Load()
+					config := getConfig(c)
+					err := config.Load()
 					if err != nil {
 						return err
 					}
@@ -107,7 +139,7 @@ func main() {
 						Fields: fields,
 					}
 					client := notionhacks.New(config)
-					return client.InsertItem("tasks", &item)
+					return client.InsertItem(c.String("db"), &item)
 				},
 			},
 			{
