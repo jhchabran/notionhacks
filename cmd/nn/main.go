@@ -38,7 +38,11 @@ func main() {
 					fmt.Print("Enter API key: ")
 					text, _ := reader.ReadString('\n')
 					config := getConfig(c)
-					err := config.SetAPIKey(strings.TrimSpace(text))
+					err := config.Load()
+					if err != nil {
+						return err
+					}
+					err = config.SetAPIKey(strings.TrimSpace(text))
 					return err
 				},
 			},
@@ -139,7 +143,12 @@ func main() {
 						Fields: fields,
 					}
 					client := notionhacks.New(config)
-					return client.InsertItem(c.String("db"), &item)
+					page, err := client.InsertItem(c.String("db"), &item)
+					if err != nil {
+						return err
+					}
+					fmt.Println(page.URL)
+					return nil
 				},
 			},
 			{

@@ -67,22 +67,22 @@ func (c *Client) ListItems(dbname string) ([]*Item, []byte, error) {
 	return items, nil, nil
 }
 
-func (c *Client) InsertItem(dbname string, item *Item) error {
+func (c *Client) InsertItem(dbname string, item *Item) (*notionapi.Page, error) {
 	id, err := c.config.DatabaseID(dbname)
 	if err != nil {
-		return fmt.Errorf("cannot insert item, configuration error: %w", err)
+		return nil, fmt.Errorf("cannot insert item, configuration error: %w", err)
 	}
 
 	properties, err := c.collectProperties(notionapi.DatabaseID(id), item)
 	if err != nil {
-		return fmt.Errorf("cannot insert item, error while collecting property configurations: %w", err)
+		return nil, fmt.Errorf("cannot insert item, error while collecting property configurations: %w", err)
 	}
 
 	properties["Name"] = notionapi.TitleProperty{
 		Title: []notionapi.RichText{{Text: notionapi.Text{Content: item.Name}}},
 	}
 
-	_, err = c.notion.Page.Create(context.Background(), &notionapi.PageCreateRequest{
+	page, err := c.notion.Page.Create(context.Background(), &notionapi.PageCreateRequest{
 		Parent: notionapi.Parent{
 			Type:       notionapi.ParentTypeDatabaseID,
 			DatabaseID: notionapi.DatabaseID(id),
@@ -90,9 +90,9 @@ func (c *Client) InsertItem(dbname string, item *Item) error {
 		Properties: properties,
 	})
 	if err != nil {
-		return fmt.Errorf("cannot insert item: request error: %w", err)
+		return nil, fmt.Errorf("cannot insert item: request error: %w", err)
 	}
-	return nil
+	return page, nil
 }
 
 func (c *Client) getPagePropertyTypes(ctx context.Context, id notionapi.DatabaseID) (notionapi.PropertyConfigs, error) {

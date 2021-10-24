@@ -93,7 +93,7 @@ func (c *KeyChainConfig) Load() error {
 	c.ring = ring
 
 	v, err := ring.Get("API_KEY")
-	if err != nil {
+	if err != nil && err != keyring.ErrKeyNotFound {
 		return err
 	}
 	c.apiKey = string(v.Data)
