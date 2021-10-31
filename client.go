@@ -256,3 +256,49 @@ func (c *Client) collectProperties(id notionapi.DatabaseID, item *Item) (notiona
 	}
 	return result, nil
 }
+
+func (c *Client) getBlockChildren(ctx context.Context, blockID notionapi.BlockID) ([]notionapi.Block, error) {
+	pagination := notionapi.Pagination{PageSize: 100}
+	blocks := []notionapi.Block{}
+	for {
+		resp, err := c.notion.Block.GetChildren(ctx, notionapi.BlockID(blockID), &pagination)
+		if err != nil {
+			return nil, err
+		}
+		blocks = append(blocks, resp.Results...)
+		if !resp.HasMore {
+			break
+		}
+		pagination.StartCursor = notionapi.Cursor(resp.NextCursor)
+	}
+	return blocks, nil
+}
+
+func (c *Client) FindPageBlocks(ctx context.Context, blockID notionapi.BlockID) ([]notionapi.Block, error) {
+	blocks, err := c.getBlockChildren(ctx, blockID)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, bl := range blocks {
+		switch bl.GetType() {
+		case notionapi.BlockTypeParagraph:
+			b := bl.(*notionapi.ParagraphBlock)
+			if b.HasChildren {
+				b.Paragraph.Children, err = c.FindPageBlocks(ctx, b.ID)
+				if err != nil {
+					return nil, err
+				}
+			}
+		case notionapi.BlockTypeBulletedListItem:
+			b := bl.(*notionapi.BulletedListItemBlock)
+			if b.HasChildren {
+				b.BulletedListItem.Children, err = c.FindPageBlocks(ctx, b.ID)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+	return blocks, err
+}
