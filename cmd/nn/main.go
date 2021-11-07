@@ -71,6 +71,20 @@ func main() {
 				},
 			},
 			{
+				Name:  "list-db",
+				Usage: "list registered databases",
+				Action: func(c *cli.Context) error {
+					config := getConfig(c)
+					err := config.Load()
+					if err != nil {
+						return err
+					}
+					names := config.ListDatabases()
+					fmt.Println(strings.Join(names, "\n"))
+					return nil
+				},
+			},
+			{
 				Name:    "list",
 				Aliases: []string{"l"},
 				Usage:   "list items from a database",
@@ -101,7 +115,7 @@ func main() {
 						fmt.Println(string(raw))
 					} else {
 						for _, item := range items {
-							fmt.Println(item.Name, item.Fields)
+							fmt.Println(item.Name)
 						}
 					}
 					return nil
@@ -158,6 +172,26 @@ func main() {
 				Action: func(c *cli.Context) error {
 					fmt.Println("list")
 					return nil
+				},
+			},
+			{
+				Name:  "open",
+				Usage: "Open a page in the browser",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:     "db",
+						Required: true,
+						Usage:    "name of the database to operate on",
+					},
+				},
+				Action: func(c *cli.Context) error {
+					config := getConfig(c)
+					err := config.Load()
+					if err != nil {
+						return err
+					}
+					client := notionhacks.New(config)
+					return client.OpenPage(c.Context, c.String("db"), c.Args().First())
 				},
 			},
 		},

@@ -11,10 +11,11 @@ import (
 
 type Config interface {
 	Load() error
-	RegisterDatabaseName(name string, ID string) error
 	SetAPIKey(apiKey string) error
 	APIKey() string
 	DatabaseID(dbname string) (string, error)
+	RegisterDatabaseName(name string, ID string) error
+	ListDatabases() []string
 }
 
 type JSONConfig struct {
@@ -54,6 +55,14 @@ func (c *JSONConfig) DatabaseID(dbname string) (string, error) {
 		return "", fmt.Errorf("no database registered with the name: %s", dbname)
 	}
 	return id, nil
+}
+
+func (c *JSONConfig) ListDatabases() []string {
+	dbs := make([]string, 0, len(c.Databases))
+	for name := range c.Databases {
+		dbs = append(dbs, name)
+	}
+	return dbs
 }
 
 type KeyChainConfig struct {
@@ -129,6 +138,14 @@ func (c *KeyChainConfig) DatabaseID(dbname string) (string, error) {
 func (c *KeyChainConfig) RegisterDatabaseName(name string, ID string) error {
 	c.databases[name] = string(ID)
 	return c.saveDBs()
+}
+
+func (c *KeyChainConfig) ListDatabases() []string {
+	dbs := make([]string, 0, len(c.databases))
+	for name := range c.databases {
+		dbs = append(dbs, name)
+	}
+	return dbs
 }
 
 func (c *KeyChainConfig) saveDBs() error {

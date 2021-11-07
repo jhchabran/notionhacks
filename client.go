@@ -35,7 +35,8 @@ func pageTitle(page *notionapi.Page) (string, error) {
 		return "", fmt.Errorf("cannot read title, not a page title property")
 	}
 	if len(p.Title) < 1 {
-		return "", fmt.Errorf("cannot read title, invalid property")
+		// On page without any title, the internal struct is empty.
+		return "", nil
 	}
 	return p.Title[0].PlainText, nil
 }
@@ -45,9 +46,7 @@ func (c *Client) ListItems(dbname string) ([]*Item, []byte, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot list items, configuration error: %w", err)
 	}
-	resp, err := c.notion.Database.Query(context.Background(), notionapi.DatabaseID(id), &notionapi.DatabaseQueryRequest{
-		Sorts: []notionapi.SortObject{},
-	})
+	resp, err := c.notion.Database.Query(context.Background(), notionapi.DatabaseID(id), nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot list items, request error: %w", err)
 	}
@@ -125,15 +124,21 @@ func (c *Client) findPageByTitle(ctx context.Context, id notionapi.DatabaseID, t
 	}
 }
 
+func (c *Client) OpenPage(ctx context.Context, dbname string, title string) error {
+	id, err := c.config.DatabaseID(dbname)
+	if err != nil {
+		return fmt.Errorf("cannot insert item, configuration error: %w", err)
+	}
+	page, err := c.findPageByTitle(ctx, notionapi.DatabaseID(id), title)
+	OpenURL(page.URL)
+	return nil
+}
+
 func (c *Client) collectProperties(id notionapi.DatabaseID, item *Item) (notionapi.Properties, error) {
 	properties, err := c.getPagePropertyTypes(context.TODO(), notionapi.DatabaseID(id))
 	if err != nil {
 		return nil, err
 	}
-
-	// for k, v := range properties {
-	// 	fmt.Println("name:", k, "value:", v)
-	// }
 
 	result := notionapi.Properties{}
 	for k, v := range item.Fields {
